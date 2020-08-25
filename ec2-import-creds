@@ -1,15 +1,19 @@
 #!/bin/sh
 # shellcheck disable=SC2155
 
-role_name="role-name"
-credentials="$(curl -m 1 -s http://169.254.169.254/latest/meta-data/iam/security-credentials/$role_name)"
+attached_role_name=$(curl -m 1 -s "http://169.254.169.254/latest/meta-data/iam/security-credentials")
+credentials=$([ -n "$attached_role_name" ] && curl -m 1 -s "http://169.254.169.254/latest/meta-data/iam/security-credentials/$attached_role_name")
+availability_zone="$(curl -m 1 -s "http://169.254.169.254/latest/meta-data/placement/availability-zone")"
 
 get_key_value() {
   echo "$1" | grep "$2" | cut -d ':' -f 2 | cut -d '"' -f 2
 }
 
-if [ -n "$credentials" ]; then
-    export AWS_ACCESS_KEY_ID=$(get_key_value "$credentials" "AccessKeyId")
-    export AWS_SECRET_ACCESS_KEY=$(get_key_value "$credentials" "SecretAccessKey")
-    export AWS_SESSION_TOKEN=$(get_key_value "$credentials" "Token")
-fi
+strip_az_suffix() {
+  echo "$1" | sed -e 's![a-z]$!!'
+}
+
+[ -n "$availability_zone" ] && export AWS_DEFAULT_REGION=$(strip_az_suffix "$availability_zone")
+[ -n "$credentials" ] && export AWS_ACCESS_KEY_ID=$(get_key_value "$credentials" "AccessKeyId")
+[ -n "$credentials" ] && export AWS_SECRET_ACCESS_KEY=$(get_key_value "$credentials" "SecretAccessKey")
+[ -n "$credentials" ] && export AWS_SESSION_TOKEN=$(get_key_value "$credentials" "Token")

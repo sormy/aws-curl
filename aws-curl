@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2155,SC2001
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 
 DATE_CMD="date"
 SED_CMD="sed"
@@ -103,7 +103,11 @@ url_query_string() {
 ##
 aws_host_region() {
     local host="$1"
-    echo "$host" | $SED_CMD -e 's!s3-!s3.!' -e 's!^[^.]*\.s3\.!s3.!' -e 's!^[^.]*\.!!' -e 's!\..*!!'
+    local region=$(echo "$host" \
+        | $SED_CMD -e 's!s3-!s3.!' -e 's!^[^.]*\.s3\.!s3.!' -e 's!^[^.]*\.!!' -e 's!\..*!!')
+    if echo "$region" | grep -q '^[a-z]\{2\}-[a-z]*-[0-9]$'; then
+        echo "$region"
+    fi
 }
 
 ##
@@ -311,6 +315,8 @@ headers=""
 data=""
 args=""
 verbose=""
+region=""
+service=""
 
 while [ "$1" != "" ]; do
     case $1 in
@@ -342,6 +348,16 @@ while [ "$1" != "" ]; do
             args="${args}${1}"$'\n'
             shift
             ;;
+        --region )
+            shift
+            region="$1"
+            shift
+            ;;
+        --service )
+            shift
+            service="$1"
+            shift
+            ;;
         * )
             if [ "$url" != "$1" ]; then
                 args="${args}${1}"$'\n'
@@ -355,8 +371,27 @@ iso_timestamp="$($DATE_CMD -ud "$timestamp" "+%Y%m%dT%H%M%SZ")"
 date_scope=$($DATE_CMD -ud "$timestamp" "+%Y%m%d")
 
 host=$(url_host "$url")
-service=$(aws_host_service "$host")
-region=$(aws_host_region "$host")
+
+# detect service from host if not explicitly provided
+if [ -z "$service" ]; then
+    service=$(aws_host_service "$host")
+fi
+if [ -z "$service" ]; then
+    echo "Unable to detect AWS service from host. Set using --service argument."
+    exit 1
+fi
+
+# detect region from host if not explicitly provided
+if [ -z "$region" ]; then
+    region=$(aws_host_region "$host")
+fi
+if [ -z "$region" ]; then
+    region="$AWS_DEFAULT_REGION"
+fi
+if [ -z "$region" ]; then
+    echo "Unable to detect AWS region from host. Set using AWS_DEFAULT_REGION environment variable or --region argument."
+    exit 1
+fi
 
 date_header="x-amz-date: $iso_timestamp"$'\n'
 headers="${headers}${date_header}"
@@ -388,4 +423,8 @@ fi
 
 echo "$all_args" \
     | tr '\n' '\0' \
-    | xargs -0 curl -X "$method" -H "$authorization_header" -d "$data"
+    | xargs -0 curl -X "$method" \
+        -H "$authorization_header" \
+        -H "User-Agent:" \
+        -H "Accept:" \
+        -d "$data"

@@ -3,6 +3,21 @@
 `aws-curl` is like `curl` but with automatic SIGV4 signing to simplify calling
 AWS services without requirement to have Python to be installed.
 
+## Prerequisites
+
+- openssl (or libressl)
+- curl
+- coreutils
+
+On macOS: `brew install coreutils`
+
+## Installation
+
+```
+curl -s https://raw.githubusercontent.com/sormy/aws-curl/master/aws-curl -o /usr/local/bin/aws-curl
+chmod +x /usr/local/bin/aws-curl
+```
+
 ## Usage
 
 Set AWS credentials as environment variables.
@@ -50,10 +65,18 @@ Wrapper recognizes these curl arguments:
 - `-H` | `--header` as request header
 - `-d` | `--data` as request body
 
-Wrapper extracts AWS region name and AWS service name from service endpoint.
+Wrapper recognizes these non-curl arguments:
 
-Assumed format for endpoint is `https://<service>.<region>.<domain>`,
-for example `https://logs.us-east-1.amazonaws.com`.
+- `--service` - AWS service name if can't be automatically detected from host
+- `--region` - AWS region name if can't be automatically detected from host
+  or if not provided in `AWS_DEFAULT_REGION` environment variable
+
+Wrapper tries to auto detect AWS region name and AWS service name from service
+endpoint host.
+
+Assumed format for endpoint is `https://<service>.<region>.<domain>`
+or `https://<service>.<domain>`, for example
+`https://logs.us-east-1.amazonaws.com` and `https://sts.amazonaws.com`.
 
 Wrapper implicitly adds headers `authorization`, `x-amz-date` and
 `x-amz-security-token` (if needed), so don't need to pass them explicitly.
@@ -65,32 +88,14 @@ Wrapper reads these environment variables (as AWS credentials):
 - `AWS_ACCESS_KEY_ID` - AWS public access key
 - `AWS_SECRET_ACCESS_KEY` - AWS private secret key
 - `AWS_SESSION_TOKEN` - temporary token received from STS or from EC2 metadata
+- `AWS_DEFAULT_REGION` - in case if region is not provided in URL
 
 ## EC2 attached role
 
-Here is an example how to fetch credentials for attached to EC2 instance role:
+This repo includes `ec2-import-creds` that can import attached credentials
+including access key, secret key, session token and region.
 
-```sh
-# update role name to the one that is used on EC2 instance
-role_name="cloudwatch-logs-all"
-credentials="$(curl -m 1 -s http://169.254.169.254/latest/meta-data/iam/security-credentials/$role_name)"
-
-get_key_value() {
-  echo "$1" | grep "$2" | cut -d ':' -f 2 | cut -d '"' -f 2
-}
-
-if [ -n "$credentials" ]; then
-    export AWS_ACCESS_KEY_ID=$(get_key_value "$credentials" "AccessKeyId")
-    export AWS_SECRET_ACCESS_KEY=$(get_key_value "$credentials" "SecretAccessKey")
-    export AWS_SESSION_TOKEN=$(get_key_value "$credentials" "Token")
-fi
-```
-
-## Dependencies
-
-- openssl (or libressl)
-- curl
-- coreutils
+Just import from the shell as `source ec2-import-creds`.
 
 ## Platforms
 
