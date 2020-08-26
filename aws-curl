@@ -303,12 +303,6 @@ version() {
     curl --version
 }
 
-# check mandatory environment variables
-if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-    echo "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are not set"
-    exit 1
-fi
-
 url="${!#}"
 method="GET"
 headers=""
@@ -365,6 +359,12 @@ while [ "$1" != "" ]; do
             shift
     esac
 done
+
+# check mandatory environment variables
+if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+    echo "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are not set"
+    exit 1
+fi
 
 timestamp="$($DATE_CMD -u "+%Y-%m-%d %H:%M:%S")"
 iso_timestamp="$($DATE_CMD -ud "$timestamp" "+%Y%m%dT%H%M%SZ")"
