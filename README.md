@@ -53,6 +53,29 @@ aws-curl -X POST \
   "https://logs.us-east-1.amazonaws.com"
 ```
 
+Another example, for API that requires POST with url encoded body:
+
+```sh
+aws-curl -X POST \
+  -H 'Content-Type: application/x-www-form-urlencoded; charset=utf-8' \
+  -d 'Action=GetCallerIdentity&Version=2011-06-15' \
+  https://sts.amazonaws.com
+```
+
+## How to get know syntax for API
+
+1. Take a look on AWS documentation, sometimes it has explicit http example.
+
+2. Run the same command using aws cli with `--debug`. Take a look how aws cli
+   is performing the request, what body is used, what method is used, what
+   url, what region and what headers. Take a look on `Content-Type`, it impacts
+   on how request body should be encoded.
+
+3. You can get more details by exploring service json metadata file. aws cli
+   with `--debug` dumps what service file is loaded for specific command.
+   You can explore it and find what body format is, what are all available
+   options and what is the result.
+
 ## How it works
 
 This is very thin wrapper around curl. Most of options are passed as it is to
@@ -80,8 +103,6 @@ or `https://<service>.<domain>`, for example
 
 Wrapper implicitly adds headers `authorization`, `x-amz-date` and
 `x-amz-security-token` (if needed), so don't need to pass them explicitly.
-
-## Custom credentials
 
 Wrapper reads these environment variables (as AWS credentials):
 
