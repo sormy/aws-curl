@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # shellcheck disable=SC2155,SC2001
 
-VERSION="1.0.2"
+VERSION="1.0.3"
 
 DATE_CMD="date"
 SED_CMD="sed"
@@ -13,6 +13,19 @@ if [ "$(uname)" = "Darwin" ]; then
 fi
 
 ##
+# Removes empty lines from passed payload
+# Arguments:
+#   $1 string to process
+# Returns:
+#   string without empty lines
+##
+remove_empty_lines() {
+    payload="$1"
+
+    echo "$payload" | $SED_CMD '/^\s*$/d'
+}
+
+##
 # Convert string to hex with max line size of 256
 # Arguments:
 #   $1 string to convert
@@ -20,8 +33,9 @@ fi
 #   string hex
 ##
 hex256() {
-    local payload="$1"
-    echo -n "$payload" | od -A n -t x1 | $SED_CMD ':a;N;$!ba;s/[\n ]//g'
+    payload="$1"
+
+    printf "%s" "$payload" | od -A n -t x1 | $SED_CMD ':a;N;$!ba;s/[\n ]//g'
 }
 
 ##
@@ -32,8 +46,9 @@ hex256() {
 #   string hash
 ##
 sha256() {
-    local payload="$1"
-    echo -n "$payload" | openssl dgst -sha256 | $SED_CMD 's/^.* //'
+    payload="$1"
+
+    printf "%s" "$payload" | openssl dgst -sha256 | $SED_CMD 's/^.* //'
 }
 
 ##
@@ -45,10 +60,10 @@ sha256() {
 #   string signature
 ##
 hmac_sha256() {
-    local key="$1"
-    local payload="$2"
+    key="$1"
+    payload="$2"
 
-    echo -n "$payload" \
+    printf "%s" "$payload" \
         | openssl dgst -binary -hex -sha256 -mac HMAC -macopt "hexkey:$key" \
         | $SED_CMD 's/^.* //'
 }
@@ -61,7 +76,7 @@ hmac_sha256() {
 #   string host (with port if specified)
 ##
 url_host() {
-    local url="$1"
+    url="$1"
 
     echo "$url" | $SED_CMD -e 's!^[^:]*://!!' -e 's!/.*$!!'
 }
@@ -74,7 +89,7 @@ url_host() {
 #   string path (without port)
 ##
 url_path() {
-    local url="$1"
+    url="$1"
 
     echo "$url" | $SED_CMD -e 's!^[^:]*://[^/]*!!' -e 's!?.*$!!' -e 's!#.*$!!' -e 's!^$!/!'
 }
@@ -87,7 +102,7 @@ url_path() {
 #   string query string (without leading ?)
 ##
 url_query_string() {
-    local url="$1"
+    url="$1"
 
     echo "$url" \
         | $SED_CMD -e 's!#.*$!!' -e 's!?\|$!?!' -e 's!.*?!!' \
@@ -102,8 +117,9 @@ url_query_string() {
 #   string AWS region
 ##
 aws_host_region() {
-    local host="$1"
-    local region=$(echo "$host" \
+    host="$1"
+
+    region=$(echo "$host" \
         | $SED_CMD -e 's!s3-!s3.!' -e 's!^[^.]*\.s3\.!s3.!' -e 's!^[^.]*\.!!' -e 's!\..*!!')
     if echo "$region" | grep -q '^[a-z]\{2\}-[a-z]*-[0-9]$'; then
         echo "$region"
@@ -118,7 +134,8 @@ aws_host_region() {
 #   string AWS service
 ##
 aws_host_service() {
-    local url="$1"
+    url="$1"
+
     echo "$url" | $SED_CMD -e 's!s3-!s3.!' -e 's!^[^.]*\.s3\.!s3.!' -e 's!\..*!!'
 }
 
@@ -130,7 +147,7 @@ aws_host_service() {
 #   string canonical headers separated by "\n"
 ##
 sigv4_canonical_headers() {
-    local headers="$1"
+    headers="$1"
 
     echo "$headers" \
         | $SED_CMD -e 's!^ *!!' -e 's! *$!!' -e 's! \{2,\}! !g' -e 's! *: *!:!' -e 's!^.*:!\L&\E!' \
@@ -145,8 +162,8 @@ sigv4_canonical_headers() {
 # Returns:
 #   string list of signed headers separated by ";"
 ##
-sigv4_signed_headers() {
-    local canonical_headers="$1"
+sigv4_signed_headers_list() {
+    canonical_headers="$1"
 
     echo "$canonical_headers" | $SED_CMD -e 's!:.*!!' | paste -sd ";" -
 }
@@ -165,23 +182,23 @@ sigv4_signed_headers() {
 #   https://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
 ##
 sigv4_canonical_request() {
-    local method="$1"
-    local url="$2"
-    local canonical_headers="$3"
-    local signed_headers="$4"
-    local payload="$5"
+    method="$1"
+    url="$2"
+    canonical_headers="$3"
+    signed_headers_list="$4"
+    payload="$5"
 
-    local canonical_url=$(url_path "$url")
-    local canonical_query_string=$(url_query_string "$url")
-    local payload_hash=$(sha256 "$payload")
+    canonical_url=$(url_path "$url")
+    canonical_query_string=$(url_query_string "$url")
+    payload_hash=$(sha256 "$payload")
 
-    # assume that canonical headers will have missing trailing space so extra '\n' is needed
+    # assume that canonical headers are separated by \n without trailing \n so extra '\n' is needed
     printf "%s\n%s\n%s\n%s\n\n%s\n%s" \
         "$method" \
         "$canonical_url" \
         "$canonical_query_string" \
         "$canonical_headers" \
-        "$signed_headers" \
+        "$signed_headers_list" \
         "$payload_hash"
 }
 
@@ -197,12 +214,12 @@ sigv4_canonical_request() {
 #   https://docs.aws.amazon.com/general/latest/gr/sigv4-create-string-to-sign.html
 ##
 sigv4_string_to_sign() {
-    local iso_timestamp="$1"
-    local credential_scope="$2"
-    local canonical_request="$3"
+    iso_timestamp="$1"
+    credential_scope="$2"
+    canonical_request="$3"
 
-    local algorithm="AWS4-HMAC-SHA256"
-    local canonical_request_hash=$(sha256 "$canonical_request")
+    algorithm="AWS4-HMAC-SHA256"
+    canonical_request_hash=$(sha256 "$canonical_request")
 
     printf "%s\n%s\n%s\n%s" \
         "$algorithm" \
@@ -223,9 +240,9 @@ sigv4_string_to_sign() {
 #   https://docs.aws.amazon.com/general/latest/gr/sigv4-create-string-to-sign.html
 ##
 sigv4_credential_scope() {
-    local date_scope="$1"
-    local region="$2"
-    local service="$3"
+    date_scope="$1"
+    region="$2"
+    service="$3"
 
     printf "%s/%s/%s/aws4_request" "$date_scope" "$region" "$service"
 }
@@ -244,17 +261,17 @@ sigv4_credential_scope() {
 #   https://docs.aws.amazon.com/general/latest/gr/sigv4-calculate-signature.html
 ##
 sigv4_signature() {
-    local secret_key="$1"
-    local date_scope="$2"
-    local region="$3"
-    local service="$4"
-    local string_to_sign="$5"
+    secret_key="$1"
+    date_scope="$2"
+    region="$3"
+    service="$4"
+    string_to_sign="$5"
 
-    local k_secret=$(hex256 "AWS4$secret_key")
-    local k_date=$(hmac_sha256 "$k_secret" "$date_scope")
-    local k_region=$(hmac_sha256 "$k_date" "$region")
-    local k_service=$(hmac_sha256 "$k_region" "$service")
-    local k_signing=$(hmac_sha256 "$k_service" "aws4_request")
+    k_secret=$(hex256 "AWS4$secret_key")
+    k_date=$(hmac_sha256 "$k_secret" "$date_scope")
+    k_region=$(hmac_sha256 "$k_date" "$region")
+    k_service=$(hmac_sha256 "$k_region" "$service")
+    k_signing=$(hmac_sha256 "$k_service" "aws4_request")
 
     hmac_sha256 "$k_signing" "$string_to_sign"
 }
@@ -272,18 +289,18 @@ sigv4_signature() {
 #   https://docs.aws.amazon.com/general/latest/gr/sigv4-add-signature-to-request.html
 ##
 sigv4_authorization_header() {
-    local access_key="$1"
-    local credential_scope="$2"
-    local signed_headers="$3"
-    local signature="$4"
+    access_key="$1"
+    credential_scope="$2"
+    signed_headers_list="$3"
+    signature="$4"
 
-    local algorithm="AWS4-HMAC-SHA256"
+    algorithm="AWS4-HMAC-SHA256"
 
     printf "Authorization: %s Credential=%s/%s, SignedHeaders=%s, Signature=%s" \
         "$algorithm" \
         "$access_key" \
         "$credential_scope" \
-        "$signed_headers" \
+        "$signed_headers_list" \
         "$signature"
 }
 
@@ -303,30 +320,32 @@ version() {
     curl --version
 }
 
-url="${!#}"
-method="GET"
-headers=""
-data=""
-args=""
-verbose=""
-region=""
-service=""
+# these variables will be populated after reading all arguments
+REQUEST_URL="${!#}"
+REQUEST_METHOD="GET"
+REQUEST_HEADERS=""
+REQUEST_PAYLOAD=""
+CURL_EXTRA_ARGS=""
+CURL_VERBOSE=""
+AWS_REGION=""
+AWS_SERVICE=""
 
+# read command line arguments
 while [ "$1" != "" ]; do
     case $1 in
         -X | --request )
             shift
-            method="$1"
+            REQUEST_METHOD="$1"
             shift
             ;;
         -H | --header )
             shift
-            headers="${headers}${1}"$'\n'
+            REQUEST_HEADERS=$(printf "%s\n%s" "$REQUEST_HEADERS" "$1")
             shift
             ;;
         -d | --data )
             shift
-            data="$1"
+            REQUEST_PAYLOAD="$1"
             shift
             ;;
         -h | --help )
@@ -338,27 +357,31 @@ while [ "$1" != "" ]; do
             exit
             ;;
         -v | --verbose )
-            verbose="1"
-            args="${args}${1}"$'\n'
+            CURL_VERBOSE="1"
+            CURL_EXTRA_ARGS=$(printf "%s\n%s" "$CURL_EXTRA_ARGS" "$1")
             shift
             ;;
         --region )
             shift
-            region="$1"
+            AWS_REGION="$1"
             shift
             ;;
         --service )
             shift
-            service="$1"
+            AWS_SERVICE="$1"
             shift
             ;;
         * )
-            if [ "$url" != "$1" ]; then
-                args="${args}${1}"$'\n'
+            if [ "$REQUEST_URL" != "$1" ]; then
+                CURL_EXTRA_ARGS=$(printf "%s\n%s" "$CURL_EXTRA_ARGS" "$1")
             fi
             shift
     esac
 done
+
+# remove empty lines that could be added during arguments reading
+REQUEST_HEADERS=$(remove_empty_lines "$REQUEST_HEADERS")
+CURL_EXTRA_ARGS=$(remove_empty_lines "$CURL_EXTRA_ARGS")
 
 # check mandatory environment variables
 if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
@@ -366,65 +389,76 @@ if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     exit 1
 fi
 
-timestamp="$($DATE_CMD -u "+%Y-%m-%d %H:%M:%S")"
-iso_timestamp="$($DATE_CMD -ud "$timestamp" "+%Y%m%dT%H%M%SZ")"
-date_scope=$($DATE_CMD -ud "$timestamp" "+%Y%m%d")
+# create different variations of timestamp representation needed for SIGV4
+TIMESTAMP=$($DATE_CMD -u "+%Y-%m-%d %H:%M:%S")
+TIMESTAMP_ISO=$($DATE_CMD -ud "$TIMESTAMP" "+%Y%m%dT%H%M%SZ")
 
-host=$(url_host "$url")
+# extract expected host from URL
+REQUEST_HOST=$(url_host "$REQUEST_URL")
 
 # detect service from host if not explicitly provided
-if [ -z "$service" ]; then
-    service=$(aws_host_service "$host")
+if [ -z "$AWS_SERVICE" ]; then
+    AWS_SERVICE=$(aws_host_service "$REQUEST_HOST")
 fi
-if [ -z "$service" ]; then
+if [ -z "$AWS_SERVICE" ]; then
     echo "Unable to detect AWS service from host. Set using --service argument."
     exit 1
 fi
 
-# detect region from host if not explicitly provided
-if [ -z "$region" ]; then
-    region=$(aws_host_region "$host")
+# detect region from host and AWS_DEFAULT_REGION if not explicitly provided
+if [ -z "$AWS_REGION" ]; then
+    AWS_REGION=$(aws_host_region "$REQUEST_HOST")
 fi
-if [ -z "$region" ]; then
-    region="$AWS_DEFAULT_REGION"
+if [ -z "$AWS_REGION" ]; then
+    AWS_REGION="$AWS_DEFAULT_REGION"
 fi
-if [ -z "$region" ]; then
+if [ -z "$AWS_REGION" ]; then
     echo "Unable to detect AWS region from host. Set using AWS_DEFAULT_REGION environment variable or --region argument."
     exit 1
 fi
 
-date_header="x-amz-date: $iso_timestamp"$'\n'
-headers="${headers}${date_header}"
+# date is mandatory header for SIGV4
+HEADER_DATE=$(printf "x-amz-date: %s" "$TIMESTAMP_ISO")
+REQUEST_HEADERS=$(printf "%s\n%s" "$REQUEST_HEADERS" "$HEADER_DATE")
 
+# include optional token if available
 if [ -n "$AWS_SESSION_TOKEN" ]; then
-    token_header="x-amz-security-token: $AWS_SESSION_TOKEN"$'\n'
-    headers="${headers}${token_header}"
+    HEADER_TOKEN=$(printf "x-amz-security-token: %s" "$AWS_SESSION_TOKEN")
+    REQUEST_HEADERS=$(printf "%s\n%s" "$REQUEST_HEADERS" "$HEADER_TOKEN")
 fi
 
-host_header="Host: $host"$'\n'
-headers_to_sign="${headers}${host_header}"
+# host is mandatory header for SIGV4
+HEADER_HOST=$(printf "Host: %s" "$REQUEST_HOST")
+HEADERS_TO_SIGN=$(printf "%s\n%s" "$REQUEST_HEADERS" "$HEADER_HOST")
 
-canonical_headers=$(sigv4_canonical_headers "$headers_to_sign")
-signed_headers=$(sigv4_signed_headers "$canonical_headers")
-canonical_request=$(sigv4_canonical_request "$method" "$url" "$canonical_headers" "$signed_headers" "$data")
-credential_scope=$(sigv4_credential_scope "$date_scope" "$region" "$service")
-string_to_sign=$(sigv4_string_to_sign "$iso_timestamp" "$credential_scope" "$canonical_request")
-signature=$(sigv4_signature "$AWS_SECRET_ACCESS_KEY" "$date_scope" "$region" "$service" "$string_to_sign")
-authorization_header=$(sigv4_authorization_header "$AWS_ACCESS_KEY_ID" "$credential_scope" "$signed_headers" "$signature")
+# build authorization header
+CANONICAL_HEADERS=$(sigv4_canonical_headers "$HEADERS_TO_SIGN")
+SIGNED_HEADERS_LIST=$(sigv4_signed_headers_list "$CANONICAL_HEADERS")
+CANONICAL_REQUEST=$(sigv4_canonical_request "$REQUEST_METHOD" "$REQUEST_URL" "$CANONICAL_HEADERS" "$SIGNED_HEADERS_LIST" "$REQUEST_PAYLOAD")
+DATE_SCOPE=$($DATE_CMD -ud "$TIMESTAMP" "+%Y%m%d")
+CREDENTIAL_SCOPE=$(sigv4_credential_scope "$DATE_SCOPE" "$AWS_REGION" "$AWS_SERVICE")
+STRING_TO_SIGN=$(sigv4_string_to_sign "$TIMESTAMP_ISO" "$CREDENTIAL_SCOPE" "$CANONICAL_REQUEST")
+SIGNATURE=$(sigv4_signature "$AWS_SECRET_ACCESS_KEY" "$DATE_SCOPE" "$AWS_REGION" "$AWS_SERVICE" "$STRING_TO_SIGN")
+AUTHORIZATION_HEADER=$(sigv4_authorization_header "$AWS_ACCESS_KEY_ID" "$CREDENTIAL_SCOPE" "$SIGNED_HEADERS_LIST" "$SIGNATURE")
 
-header_args=$(echo "$headers" | grep -v '^$' | $SED_CMD -e 's!^!-H|!' | tr '|' '\n')
+# convert request headers delimited by \n to list of curl arguments delimited by \n
+CURL_HEADER_ARGS=$(echo "$REQUEST_HEADERS" | $SED_CMD -e 's!^!-H\n!')
 
-all_args="${header_args}"$'\n'"${args}${url}"
+# join regular arguments, header arguments and url into single list of arguments delimited by \n
+CURL_ARGS=$(printf "%s\n%s\n%s" "$CURL_HEADER_ARGS" "$CURL_EXTRA_ARGS" "$REQUEST_URL")
 
-if [ -n "$verbose" ]; then
-    printf "* SIGV4 Canonical Request:\n%s\n" "$canonical_request"
-    printf "* SIGV4 String to Sign:\n%s\n" "$string_to_sign"
+# dump debug information
+if [ -n "$CURL_VERBOSE" ]; then
+    printf "* SIGV4 Canonical Request:\n%s\n" "$CANONICAL_REQUEST"
+    printf "* SIGV4 String to Sign:\n%s\n" "$STRING_TO_SIGN"
 fi
 
-echo "$all_args" \
+# override User-Agent and Accept that are injected by default by curl
+# User-Agent and Accept still can be overriden using command line arguments
+echo "$CURL_ARGS" \
     | tr '\n' '\0' \
-    | xargs -0 curl -X "$method" \
-        -H "$authorization_header" \
+    | xargs -0 curl -X "$REQUEST_METHOD" \
+        -H "$AUTHORIZATION_HEADER" \
         -H "User-Agent:" \
         -H "Accept:" \
-        -d "$data"
+        -d "$REQUEST_PAYLOAD"
