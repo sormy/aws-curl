@@ -76,11 +76,11 @@ X-Amz-Target: Logs_20140328.CreateLogGroup
 The corresponding `aws-curl` request is:
 
 ```sh
-aws-curl -X POST \
-  -H "Content-Type: application/x-amz-json-1.1" \
-  -H "x-amz-target: Logs_20140328.CreateLogGroup" \
-  -H "Accept: application/json" \
-  -d '{"logGroupName": "my-log-group"}' \
+aws-curl --request POST \
+  --header "Content-Type: application/x-amz-json-1.1" \
+  --header "x-amz-target: Logs_20140328.CreateLogGroup" \
+  --header "Accept: application/json" \
+  --data '{"logGroupName": "my-log-group"}' \
   "https://logs.us-east-1.amazonaws.com"
 ```
 
@@ -108,9 +108,9 @@ Action=GetCallerIdentity&Version=2011-06-15
 The corresponding `aws-curl` request is:
 
 ```sh
-aws-curl -X POST \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "Action=GetCallerIdentity&Version=2011-06-15" \
+aws-curl --request POST \
+  --header "Content-Type: application/x-www-form-urlencoded" \
+  --data "Action=GetCallerIdentity&Version=2011-06-15" \
   --region "us-east-1" \
   "https://sts.amazonaws.com"
 ```
