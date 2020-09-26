@@ -163,7 +163,7 @@ These headers are optional:
 * `User-Agent` - doesn't have any impact on response
 * `Accept` - optional, but can be used to enforce response format (xml or json)
 
-## Service/region autodection
+## Service/region autodetection
 
 Wrapper tries to auto detect AWS region name and AWS service name from service
 endpoint host.
