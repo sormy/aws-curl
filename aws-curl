@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2155,SC2001
 
-VERSION="1.0.3"
+VERSION="1.0.4"
 
 DATE_CMD="date"
 SED_CMD="sed"
@@ -321,7 +321,7 @@ version() {
 }
 
 # these variables will be populated after reading all arguments
-REQUEST_URL="${!#}"
+REQUEST_URL=""
 REQUEST_METHOD="GET"
 REQUEST_HEADERS=""
 REQUEST_PAYLOAD=""
@@ -331,7 +331,7 @@ AWS_REGION=""
 AWS_SERVICE=""
 
 # read command line arguments
-while [ "$1" != "" ]; do
+while [ "$#" != 0 ]; do
     case $1 in
         -X | --request )
             shift
@@ -372,7 +372,9 @@ while [ "$1" != "" ]; do
             shift
             ;;
         * )
-            if [ "$REQUEST_URL" != "$1" ]; then
+            if [ "$#" = 1 ]; then
+                REQUEST_URL="$1"
+            else
                 CURL_EXTRA_ARGS=$(printf "%s\n%s" "$CURL_EXTRA_ARGS" "$1")
             fi
             shift
@@ -383,9 +385,15 @@ done
 REQUEST_HEADERS=$(remove_empty_lines "$REQUEST_HEADERS")
 CURL_EXTRA_ARGS=$(remove_empty_lines "$CURL_EXTRA_ARGS")
 
+# check if URL is provided
+if [ -z "$REQUEST_URL" ]; then
+    echo "URL is not set. Provide URL as last argument."
+    exit 1
+fi
+
 # check mandatory environment variables
 if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-    echo "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are not set"
+    echo "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are not set."
     exit 1
 fi
 
@@ -457,8 +465,8 @@ fi
 # User-Agent and Accept still can be overriden using command line arguments
 echo "$CURL_ARGS" \
     | tr '\n' '\0' \
-    | xargs -0 curl -X "$REQUEST_METHOD" \
-        -H "$AUTHORIZATION_HEADER" \
-        -H "User-Agent:" \
-        -H "Accept:" \
-        -d "$REQUEST_PAYLOAD"
+    | xargs -0 curl --request "$REQUEST_METHOD" \
+        --header "$AUTHORIZATION_HEADER" \
+        --header "User-Agent:" \
+        --header "Accept:" \
+        --data "$REQUEST_PAYLOAD"
