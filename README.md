@@ -133,6 +133,7 @@ Wrapper recognizes these `curl` arguments:
 - `-H` | `--header` as request header
 - `-d` | `--data` as request body
 - `-V` | `--version` - shows version of `aws-curl` and `curl`
+- `-h` | `--help` - shows help for `aws-curl` and `curl`
 - `-v` | `--verbose` - dumps debug details (in addition to `curl` debug details)
 
 Wrapper recognizes these non-curl arguments:
