@@ -131,6 +131,7 @@ Download file from s3 to local file:
 ```sh
 aws-curl --request GET \
   --output "my-file.txt" \
+  --region "us-east-1" \
   "https://s3.amazonaws.com/my-bucket/my-file.txt"
 ```
 
@@ -138,6 +139,7 @@ Download file from s3 and print to stdout:
 
 ```sh
 aws-curl --request GET \
+  --region "us-east-1" \
   "https://s3.amazonaws.com/my-bucket/my-file.txt"
 ```
 
@@ -146,6 +148,7 @@ Upload local file to s3.
 ```sh
 aws-curl --request PUT \
   --data "@my-file.txt" \
+  --region "us-east-1" \
   "https://s3.amazonaws.com/my-bucket/my-file.txt"
 ```
 
@@ -154,6 +157,7 @@ Upload buffer to s3.
 ```sh
 aws-curl --request PUT \
   --data "my content" \
+  --region "us-east-1" \
   "https://s3.amazonaws.com/my-bucket/my-file.txt"
 ```
 
@@ -161,6 +165,7 @@ Delete file from s3:
 
 ```sh
 aws-curl --request DELETE \
+  --region "us-east-1" \
   "https://s3.amazonaws.com/sormy/test.txt"
 ```
 
