@@ -6,6 +6,9 @@ AWS services without requirement to have AWS CLI and Python to be installed.
 The script is pure shell script designed for embedded and lightweight linux
 distributions, docker images etc.
 
+This utility also takes much less RAM than aws cli, so nano ec2 instances are
+not dying with "Out of memory" when trying to download from s3 as aws cli does.
+
 ## Prerequisites
 
 Dependencies:
@@ -121,6 +124,46 @@ NOTE: Region can't be detected from URL, so it should be explicitly provided as
 NOTE: This API has xml response format by default, pass `Accept: application/json`
       header to change response format.
 
+### Example 3: S3
+
+Download file from s3 to local file:
+
+```sh
+aws-curl --request GET \
+  --output "my-file.txt" \
+  "https://s3.amazonaws.com/my-bucket/my-file.txt"
+```
+
+Download file from s3 and print to stdout:
+
+```sh
+aws-curl --request GET \
+  "https://s3.amazonaws.com/my-bucket/my-file.txt"
+```
+
+Upload local file to s3.
+
+```sh
+aws-curl --request PUT \
+  --data "@my-file.txt" \
+  "https://s3.amazonaws.com/my-bucket/my-file.txt"
+```
+
+Upload buffer to s3.
+
+```sh
+aws-curl --request PUT \
+  --data "my content" \
+  "https://s3.amazonaws.com/my-bucket/my-file.txt"
+```
+
+Delete file from s3:
+
+```sh
+aws-curl --request DELETE \
+  "https://s3.amazonaws.com/sormy/test.txt"
+```
+
 ### Command line arguments
 
 `aws-curl` is very thin wrapper around curl. Most of options are passed as it is
@@ -131,7 +174,7 @@ Wrapper recognizes these `curl` arguments:
 - Last argument as `url` or service endpoint
 - `-X` | `--request` as request METHOD (`GET` is default)
 - `-H` | `--header` as request header
-- `-d` | `--data` as request body
+- `-d` | `--data` as request body (but passed to curl as `--data-binary`)
 - `-V` | `--version` - shows version of `aws-curl` and `curl`
 - `-h` | `--help` - shows help for `aws-curl` and `curl`
 - `-v` | `--verbose` - dumps debug details (in addition to `curl` debug details)
@@ -141,6 +184,7 @@ Wrapper recognizes these non-curl arguments:
 - `--service` - AWS service name, if can't be automatically detected from host
 - `--region` - AWS region name, if can't be automatically detected from host
   or if not explicitly provided in `AWS_DEFAULT_REGION` environment variable
+- `--ec2-creds` - use attached to EC2 credentials (instance role)
 
 ### Response format
 
@@ -208,6 +252,10 @@ This repo includes `ec2-import-creds` that can import attached credentials
 including access key, secret key, session token and region.
 
 Just import from the shell as `source ec2-import-creds`.
+
+Or you can use `--ec2-creds` options of `aws-cli` to get the same effect, but
+importing credentials once in beginning is faster than importing for every
+`aws-curl` invocation.
 
 ## Platforms
 

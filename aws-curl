@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2155,SC2001
 
-VERSION="1.0.4"
+VERSION="1.0.5"
 
 DATE_CMD="date"
 SED_CMD="sed"
@@ -39,7 +39,7 @@ hex256() {
 }
 
 ##
-# Calculate sha256 hash
+# Calculate sha256 hash for content
 # Arguments:
 #   $1 string to hash
 # Returns:
@@ -49,6 +49,19 @@ sha256() {
     payload="$1"
 
     printf "%s" "$payload" | openssl dgst -sha256 | $SED_CMD 's/^.* //'
+}
+
+##
+# Calculate sha256 hash for file
+# Arguments:
+#   $1 file to hash
+# Returns:
+#   string hash
+##
+sha256_file() {
+    file="$1"
+
+    openssl dgst -sha256 < "$file" | $SED_CMD 's/^.* //'
 }
 
 ##
@@ -175,7 +188,7 @@ sigv4_signed_headers_list() {
 #   $2 url
 #   $3 canonical headers separated by "\n"
 #   $4 list of signed headers separated by ";"
-#   $5 request payload
+#   $5 request payload's sha256 hash
 # Returns:
 #   string canonical request
 # See:
@@ -186,11 +199,10 @@ sigv4_canonical_request() {
     url="$2"
     canonical_headers="$3"
     signed_headers_list="$4"
-    payload="$5"
+    payload_hash="$5"
 
     canonical_url=$(url_path "$url")
     canonical_query_string=$(url_query_string "$url")
-    payload_hash=$(sha256 "$payload")
 
     # assume that canonical headers are separated by \n without trailing \n so extra '\n' is needed
     printf "%s\n%s\n%s\n%s\n\n%s\n%s" \
@@ -305,6 +317,50 @@ sigv4_authorization_header() {
 }
 
 ##
+# Extracts key value from pretty-printed JSON-like structure.
+# Arguments:
+#   $1 payload
+#   $2 key name
+# Returns:
+#   key value
+##
+get_key_value() {
+    echo "$1" | grep "$2" | cut -d ':' -f 2 | cut -d '"' -f 2
+}
+
+##
+# Removes az suffix from availability zone name
+# Arguments:
+#   $1 region with az suffix
+# Returns:
+#   region without az suffix
+##
+strip_az_suffix() {
+    echo "$1" | sed -e 's![a-z]$!!'
+}
+
+##
+# Imports credentials attached to EC2 instance
+##
+ec2_import_creds() {
+    curl_opts="--silent --connect-timeout 1 --fail"
+    ec2_metadata_url="http://169.254.169.254/latest/meta-data"
+    attached_role_name=$(curl $curl_opts "$ec2_metadata_url/iam/security-credentials")
+    credentials=$([ -n "$attached_role_name" ] && curl $curl_opts "$ec2_metadata_url/iam/security-credentials/$attached_role_name")
+    availability_zone="$(curl $curl_opts "$ec2_metadata_url/placement/availability-zone")"
+
+    if [ -n "$availability_zone" ]; then
+        AWS_DEFAULT_REGION=$(strip_az_suffix "$availability_zone")
+    fi
+
+    if [ -n "$credentials" ]; then
+        AWS_ACCESS_KEY_ID=$(get_key_value "$credentials" "AccessKeyId")
+        AWS_SECRET_ACCESS_KEY=$(get_key_value "$credentials" "SecretAccessKey")
+        AWS_SESSION_TOKEN=$(get_key_value "$credentials" "Token")
+    fi
+}
+
+##
 # Show help
 ##
 help() {
@@ -329,6 +385,7 @@ CURL_EXTRA_ARGS=""
 CURL_VERBOSE=""
 AWS_REGION=""
 AWS_SERVICE=""
+EC2_CREDS="0"
 
 # read command line arguments
 while [ "$#" != 0 ]; do
@@ -343,7 +400,7 @@ while [ "$#" != 0 ]; do
             REQUEST_HEADERS=$(printf "%s\n%s" "$REQUEST_HEADERS" "$1")
             shift
             ;;
-        -d | --data )
+        -d | --data | --data-binary )
             shift
             REQUEST_PAYLOAD="$1"
             shift
@@ -371,6 +428,14 @@ while [ "$#" != 0 ]; do
             AWS_SERVICE="$1"
             shift
             ;;
+        --ec2-creds )
+            shift
+            EC2_CREDS="1"
+            ;;
+        --data-ascii | --data-raw | --data-urlencode )
+            echo "Option $1 is not supported at this time."
+            exit 1
+            ;;
         * )
             if [ "$#" = 1 ]; then
                 REQUEST_URL="$1"
@@ -389,6 +454,11 @@ CURL_EXTRA_ARGS=$(remove_empty_lines "$CURL_EXTRA_ARGS")
 if [ -z "$REQUEST_URL" ]; then
     echo "URL is not set. Provide URL as last argument."
     exit 1
+fi
+
+# import attached ec2 credentials if enabled
+if [ "$EC2_CREDS" = 1 ]; then
+    ec2_import_creds
 fi
 
 # check mandatory environment variables
@@ -425,6 +495,18 @@ if [ -z "$AWS_REGION" ]; then
     exit 1
 fi
 
+# calculate payload hash
+if echo "$REQUEST_PAYLOAD" | grep -q "^@"; then
+    REQUEST_PAYLOAD_FILE=$(echo "$REQUEST_PAYLOAD" | $SED_CMD -e 's/^@//')
+    if [ ! -f "$REQUEST_PAYLOAD_FILE" ]; then
+        echo "Unable to find file \"$REQUEST_PAYLOAD_FILE\"."
+        exit 1
+    fi
+    REQUEST_PAYLOAD_HASH=$(sha256_file "$REQUEST_PAYLOAD_FILE")
+else
+    REQUEST_PAYLOAD_HASH=$(sha256 "$REQUEST_PAYLOAD")
+fi
+
 # date is mandatory header for SIGV4
 HEADER_DATE=$(printf "x-amz-date: %s" "$TIMESTAMP_ISO")
 REQUEST_HEADERS=$(printf "%s\n%s" "$REQUEST_HEADERS" "$HEADER_DATE")
@@ -435,6 +517,17 @@ if [ -n "$AWS_SESSION_TOKEN" ]; then
     REQUEST_HEADERS=$(printf "%s\n%s" "$REQUEST_HEADERS" "$HEADER_TOKEN")
 fi
 
+# s3 requires extra header these days
+if [ "$AWS_SERVICE" = "s3" ]; then
+    HEADER_CONTENT_SHA256=$(printf "x-amz-content-sha256: %s" "$REQUEST_PAYLOAD_HASH")
+    REQUEST_HEADERS=$(printf "%s\n%s" "$REQUEST_HEADERS" "$HEADER_CONTENT_SHA256")
+fi
+
+# build user agent
+# CURL_VERSION=$(curl --version | head -n 1 | cut -d ' ' -f 2)
+# HEADER_USER_AGENT="User-Agent: aws-curl/$VERSION curl/$CURL_VERSION"
+# REQUEST_HEADERS=$(printf "%s\n%s" "$REQUEST_HEADERS" "$HEADER_USER_AGENT")
+
 # host is mandatory header for SIGV4
 HEADER_HOST=$(printf "Host: %s" "$REQUEST_HOST")
 HEADERS_TO_SIGN=$(printf "%s\n%s" "$REQUEST_HEADERS" "$HEADER_HOST")
@@ -442,7 +535,7 @@ HEADERS_TO_SIGN=$(printf "%s\n%s" "$REQUEST_HEADERS" "$HEADER_HOST")
 # build authorization header
 CANONICAL_HEADERS=$(sigv4_canonical_headers "$HEADERS_TO_SIGN")
 SIGNED_HEADERS_LIST=$(sigv4_signed_headers_list "$CANONICAL_HEADERS")
-CANONICAL_REQUEST=$(sigv4_canonical_request "$REQUEST_METHOD" "$REQUEST_URL" "$CANONICAL_HEADERS" "$SIGNED_HEADERS_LIST" "$REQUEST_PAYLOAD")
+CANONICAL_REQUEST=$(sigv4_canonical_request "$REQUEST_METHOD" "$REQUEST_URL" "$CANONICAL_HEADERS" "$SIGNED_HEADERS_LIST" "$REQUEST_PAYLOAD_HASH")
 DATE_SCOPE=$($DATE_CMD -ud "$TIMESTAMP" "+%Y%m%d")
 CREDENTIAL_SCOPE=$(sigv4_credential_scope "$DATE_SCOPE" "$AWS_REGION" "$AWS_SERVICE")
 STRING_TO_SIGN=$(sigv4_string_to_sign "$TIMESTAMP_ISO" "$CREDENTIAL_SCOPE" "$CANONICAL_REQUEST")
@@ -450,10 +543,14 @@ SIGNATURE=$(sigv4_signature "$AWS_SECRET_ACCESS_KEY" "$DATE_SCOPE" "$AWS_REGION"
 AUTHORIZATION_HEADER=$(sigv4_authorization_header "$AWS_ACCESS_KEY_ID" "$CREDENTIAL_SCOPE" "$SIGNED_HEADERS_LIST" "$SIGNATURE")
 
 # convert request headers delimited by \n to list of curl arguments delimited by \n
-CURL_HEADER_ARGS=$(echo "$REQUEST_HEADERS" | $SED_CMD -e 's!^!-H\n!')
+CURL_HEADER_ARGS=$(echo "$REQUEST_HEADERS" | $SED_CMD -e '/^\s*$/d' -e 's!^!-H\n!')
 
 # join regular arguments, header arguments and url into single list of arguments delimited by \n
-CURL_ARGS=$(printf "%s\n%s\n%s" "$CURL_HEADER_ARGS" "$CURL_EXTRA_ARGS" "$REQUEST_URL")
+if [ -z "$CURL_EXTRA_ARGS" ]; then
+    CURL_ARGS=$(printf "%s\n%s" "$CURL_HEADER_ARGS" "$REQUEST_URL")
+else
+    CURL_ARGS=$(printf "%s\n%s\n%s" "$CURL_HEADER_ARGS" "$CURL_EXTRA_ARGS" "$REQUEST_URL")
+fi
 
 # dump debug information
 if [ -n "$CURL_VERBOSE" ]; then
@@ -469,4 +566,5 @@ echo "$CURL_ARGS" \
         --header "$AUTHORIZATION_HEADER" \
         --header "User-Agent:" \
         --header "Accept:" \
-        --data "$REQUEST_PAYLOAD"
+        --header "Content-Type:" \
+        --data-binary "$REQUEST_PAYLOAD"
