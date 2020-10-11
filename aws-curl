@@ -405,6 +405,11 @@ while [ "$#" != 0 ]; do
             REQUEST_PAYLOAD="$1"
             shift
             ;;
+        -T | --upload-file )
+            shift
+            REQUEST_PAYLOAD="@$1"
+            shift
+            ;;
         -h | --help )
             help
             exit
