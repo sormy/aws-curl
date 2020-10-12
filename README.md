@@ -228,8 +228,9 @@ or `https://<service>.<domain>`, for example
 Read more about AWS service endpoints:
 <https://docs.aws.amazon.com/general/latest/gr/rande.html>
 
-Wrapper implicitly adds headers `authorization`, `x-amz-date` and
-`x-amz-security-token` (if needed), so don't need to pass them explicitly.
+Wrapper implicitly adds headers `authorization`, `x-amz-date`,
+`x-amz-content-sha256` and `x-amz-security-token` (if needed), so don't need to
+pass them explicitly.
 
 ## How to get know syntax for API
 
