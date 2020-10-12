@@ -203,15 +203,18 @@ header `Accept: application/xml`.
 These headers are automatically handled by `aws-curl`:
 
 * `Host` - `curl` computes it automatically based on URL
-* `X-Amz-Date` - generated based on current date/time
+* `x-amz-date` - generated based on current date/time
+* `x-amz-content-sha256` - added automatically if request is to s3 service
+* `x-amz-security-token` - added automatically if corresponding env variable is set
 * `Authorization` - automaticaly generated based on request and AWS credentials
 * `Content-Length` - `curl` computes it automatically
 * `Connection` - `curl` inserts it if needed
 
-These headers are optional:
+Some headers provided by default by curl are unset by aws-curl:
 
 * `User-Agent` - doesn't have any impact on response
 * `Accept` - optional, but can be used to enforce response format (xml or json)
+* `Content-Type` - can be required or not depending on API
 
 ## Service/region autodetection
 
