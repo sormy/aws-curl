@@ -113,7 +113,8 @@ The corresponding `aws-curl` request is:
 ```sh
 aws-curl --request POST \
   --header "Content-Type: application/x-www-form-urlencoded" \
-  --data "Action=GetCallerIdentity&Version=2011-06-15" \
+  --data "Action=GetCallerIdentity" \
+  --data "Version=2011-06-15" \
   --region "us-east-1" \
   "https://sts.amazonaws.com"
 ```
@@ -167,6 +168,39 @@ Delete file from s3:
 aws-curl --request DELETE \
   --region "us-east-1" \
   "https://s3.amazonaws.com/sormy/test.txt"
+```
+
+## Example 4: EC2
+
+Create AMI image:
+
+```sh
+aws-curl --request POST \
+    --header "Content-Type: application/x-www-form-urlencoded" \
+    --data "Action=CreateImage" \
+    --data "Version=2016-11-15" \
+    --data "InstanceId=i-something" \
+    --data "Name=My Image Name" \
+    --data "Description=My Image Description" \
+    --data "NoReboot=true" \
+    --data "BlockDeviceMapping.1.DeviceName=/dev/xvdb" \
+    --data "BlockDeviceMapping.1.NoDevice=1" \
+    --data "DryRun=true" \
+    --region "us-east-1" \
+    "https://ec2.amazonaws.com"
+```
+
+Terminate EC2 instance:
+
+```sh
+aws-curl --request POST \
+    --header "Content-Type: application/x-www-form-urlencoded" \
+    --data "Action=TerminateInstances" \
+    --data "Version=2016-11-15" \
+    --data "InstanceId.1=i-something" \
+    --data "DryRun=true" \
+    --region "us-east-1" \
+    "https://ec2.amazonaws.com"
 ```
 
 ### Command line arguments
