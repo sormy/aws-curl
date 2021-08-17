@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2155,SC2001
 
-VERSION="1.0.6"
+VERSION="1.0.7"
 
 DATE_CMD="date"
 SED_CMD="sed"
@@ -525,7 +525,8 @@ fi
 # detect if header is passed to use x-www-form-urlencoded
 REQUEST_URLENCODED="0"
 if echo "$REQUEST_HEADERS" \
-    | grep -i '^\s*content-type\s*:\s*application/x-www-form-urlencoded\s*;\?\s*$'; then
+    | grep -q -i '^\s*content-type\s*:\s*application/x-www-form-urlencoded\s*;\?\s*$'
+then
     REQUEST_URLENCODED="1"
 fi
 
