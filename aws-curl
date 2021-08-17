@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2155,SC2001
 
-VERSION="1.0.5"
+VERSION="1.0.6"
 
 DATE_CMD="date"
 SED_CMD="sed"
@@ -11,6 +11,24 @@ if [ "$(uname)" = "Darwin" ]; then
     DATE_CMD="gdate"
     SED_CMD="gsed"
 fi
+
+##
+# Make url string safe.
+# (not exactly the same as curl but solves most of space url encoding issues)
+# Arguments:
+#   $1 string to encode
+# Returns:
+#   safe url string
+##
+urlsafe() {
+    echo "$1" | sed \
+        -e 's!\x09!%09!g' \
+        -e 's!\x0A!%0A!g' \
+        -e 's!\x0B!%0B!g' \
+        -e 's!\x0C!%0C!g' \
+        -e 's!\x0D!%0D!g' \
+        -e 's!\x20!%20!g'
+}
 
 ##
 # Removes empty lines from passed payload
@@ -402,7 +420,11 @@ while [ "$#" != 0 ]; do
             ;;
         -d | --data | --data-binary )
             shift
-            REQUEST_PAYLOAD="$1"
+            if [ -z "$REQUEST_PAYLOAD" ]; then
+                REQUEST_PAYLOAD="$1"
+            else
+                REQUEST_PAYLOAD="$REQUEST_PAYLOAD&$1"
+            fi
             shift
             ;;
         -T | --upload-file )
@@ -498,6 +520,18 @@ fi
 if [ -z "$AWS_REGION" ]; then
     echo "Unable to detect AWS region from host. Set using AWS_DEFAULT_REGION environment variable or --region argument."
     exit 1
+fi
+
+# detect if header is passed to use x-www-form-urlencoded
+REQUEST_URLENCODED="0"
+if echo "$REQUEST_HEADERS" \
+    | grep -i '^\s*content-type\s*:\s*application/x-www-form-urlencoded\s*;\?\s*$'; then
+    REQUEST_URLENCODED="1"
+fi
+
+# do additional sanitize if x-www-form-urlencoded is passed
+if [ "$REQUEST_URLENCODED" = 1 ]; then
+    REQUEST_PAYLOAD="$(urlsafe "$REQUEST_PAYLOAD")"
 fi
 
 # calculate payload hash
