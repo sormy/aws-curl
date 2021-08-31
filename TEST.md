@@ -13,7 +13,8 @@ aws-curl --request POST \
 
 aws-curl --request POST \
   --header "Content-Type: application/x-www-form-urlencoded" \
-  --data "Action=GetCallerIdentity&Version=2011-06-15" \
+  --data "Action=GetCallerIdentity" \
+  --data "Version=2011-06-15" \
   --region "us-east-1" \
   "https://sts.amazonaws.com"
 

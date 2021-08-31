@@ -176,31 +176,31 @@ Create AMI image:
 
 ```sh
 aws-curl --request POST \
-    --header "Content-Type: application/x-www-form-urlencoded" \
-    --data "Action=CreateImage" \
-    --data "Version=2016-11-15" \
-    --data "InstanceId=i-something" \
-    --data "Name=My Image Name" \
-    --data "Description=My Image Description" \
-    --data "NoReboot=true" \
-    --data "BlockDeviceMapping.1.DeviceName=/dev/xvdb" \
-    --data "BlockDeviceMapping.1.NoDevice=1" \
-    --data "DryRun=true" \
-    --region "us-east-1" \
-    "https://ec2.amazonaws.com"
+  --header "Content-Type: application/x-www-form-urlencoded" \
+  --data "Action=CreateImage" \
+  --data "Version=2016-11-15" \
+  --data "InstanceId=i-something" \
+  --data "Name=My Image Name" \
+  --data "Description=My Image Description" \
+  --data "NoReboot=true" \
+  --data "BlockDeviceMapping.1.DeviceName=/dev/xvdb" \
+  --data "BlockDeviceMapping.1.NoDevice=1" \
+  --data "DryRun=true" \
+  --region "us-east-1" \
+  "https://ec2.amazonaws.com"
 ```
 
 Terminate EC2 instance:
 
 ```sh
 aws-curl --request POST \
-    --header "Content-Type: application/x-www-form-urlencoded" \
-    --data "Action=TerminateInstances" \
-    --data "Version=2016-11-15" \
-    --data "InstanceId.1=i-something" \
-    --data "DryRun=true" \
-    --region "us-east-1" \
-    "https://ec2.amazonaws.com"
+  --header "Content-Type: application/x-www-form-urlencoded" \
+  --data "Action=TerminateInstances" \
+  --data "Version=2016-11-15" \
+  --data "InstanceId.1=i-something" \
+  --data "DryRun=true" \
+  --region "us-east-1" \
+  "https://ec2.amazonaws.com"
 ```
 
 ### Command line arguments
@@ -210,7 +210,10 @@ to `curl` with some exceptions (see below).
 
 Wrapper recognizes these `curl` arguments:
 
-- Last argument as `url` or service endpoint
+- `--url` as explicit request URL (but can be provided only once)
+- `https://*.amazonaws.com` somewhere in argument list as request URL
+- Last argument as `url` if not explicitly provided using `--url` and if there
+  is no argument that looks like AWS service endpoint `https://*.amazonaws.com`
 - `-X` | `--request` as request METHOD (`GET` is default)
 - `-H` | `--header` as request header
 - `-d` | `--data` as request body (but passed to curl as `--data-binary`)
