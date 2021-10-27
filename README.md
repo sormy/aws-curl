@@ -15,9 +15,10 @@ Dependencies:
 
 - openssl (or libressl)
 - curl
-- GNU coreutils (GNU date, GNU sed etc)
+- GNU coreutils (GNU date)
+- GNU sed
 
-GNU coreutils can be installed on macOS using Homebrew: `brew install coreutils`
+GNU coreutils/sed can be installed on macOS using Homebrew: `brew install coreutils gsed`
 
 ## Installation
 
