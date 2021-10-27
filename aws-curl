@@ -509,8 +509,16 @@ fi
 TIMESTAMP=$($DATE_CMD -u "+%Y-%m-%d %H:%M:%S")
 TIMESTAMP_ISO=$($DATE_CMD -ud "$TIMESTAMP" "+%Y%m%dT%H%M%SZ")
 
-# extract expected host from URL
-REQUEST_HOST=$(url_host "$REQUEST_URL")
+# extract expected host from header and, as fallback, from URL
+REQUEST_HOST="$(echo "$REQUEST_HEADERS" \
+    | grep -i '^\s*host\s*:' \
+    | $SED_CMD -e 's!^.*:\s*!!' -e 's!\s*$!!')"
+if [ -n "$REQUEST_HOST" ]; then
+    # exclude host header from regular headers to have it processed in custom way
+    REQUEST_HEADERS=$(echo "$REQUEST_HEADERS" | grep -v -i '^\s*host\s*:')
+else
+    REQUEST_HOST=$(url_host "$REQUEST_URL")
+fi
 
 # detect service from host if not explicitly provided
 if [ -z "$AWS_SERVICE" ]; then
