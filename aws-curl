@@ -509,13 +509,54 @@ fi
 TIMESTAMP=$($DATE_CMD -u "+%Y-%m-%d %H:%M:%S")
 TIMESTAMP_ISO=$($DATE_CMD -ud "$TIMESTAMP" "+%Y%m%dT%H%M%SZ")
 
-# extract expected host from header and, as fallback, from URL
-REQUEST_HOST="$(echo "$REQUEST_HEADERS" \
-    | grep -i '^\s*host\s*:' \
-    | $SED_CMD -e 's!^.*:\s*!!' -e 's!\s*$!!')"
-if [ -n "$REQUEST_HOST" ]; then
-    # exclude host header from regular headers to have it processed in custom way
-    REQUEST_HEADERS=$(echo "$REQUEST_HEADERS" | grep -v -i '^\s*host\s*:')
+get_header() {
+    headers="$1"
+    header_name="$2"
+
+    echo "$headers" \
+        | grep -i "^\s*$header_name\s*:" \
+        | $SED_CMD -e 's!^.*:\s*!!' -e 's!\s*$!!'
+}
+
+remove_header() {
+    headers="$1"
+    header_name="$2"
+
+    echo "$REQUEST_HEADERS" | grep -v -i "^\s*$header_name\s*:"
+}
+
+add_missing_port() {
+    host="$1"
+    port="$2"
+    if echo "$host" | grep -q ":"; then
+        echo "$host"
+    else
+        echo "$host:$port"
+    fi
+}
+
+url_replace_host() {
+    url="$1"
+    host="$2"
+    echo "$url" | sed "s!://[^:/]*!://$host!"
+}
+
+# special processing for the case when we need to override host header
+# otherwise just extract host from request URL
+CUSTOM_HOST=$(get_header "$REQUEST_HEADERS" "Host")
+if [ -n "$CUSTOM_HOST" ]; then
+    # exclude host header from regular headers
+    REQUEST_HEADERS=$(remove_header "$REQUEST_HEADERS" "Host")
+    # update connect/request host
+    CONNECT_HOST=$(url_host "$REQUEST_URL")
+    REQUEST_HOST="$CUSTOM_HOST"
+    # override host in request URL
+    REQUEST_URL=$(url_replace_host "$REQUEST_URL" "$REQUEST_HOST")
+    # override connect host
+    REQUEST_HOST_W_PORT=$(add_missing_port "$REQUEST_HOST" "443")
+    CONNECT_HOST_W_PORT=$(add_missing_port "$CONNECT_HOST" "443")
+    CURL_EXTRA_ARGS=$(printf "%s\n%s\n%s\n" "$CURL_EXTRA_ARGS" \
+                    "--connect-to" "$REQUEST_HOST_W_PORT:$CONNECT_HOST_W_PORT")
 else
     REQUEST_HOST=$(url_host "$REQUEST_URL")
 fi
@@ -615,6 +656,10 @@ fi
 if [ -n "$CURL_VERBOSE" ]; then
     printf "* SIGV4 Canonical Request:\n%s\n" "$CANONICAL_REQUEST"
     printf "* SIGV4 String to Sign:\n%s\n" "$STRING_TO_SIGN"
+    printf "* SIGV4 Authorization Header:\n%s\n" "$AUTHORIZATION_HEADER"
+    printf "* CURL Arguments:\n%s\n" "$CURL_ARGS"
+    printf "* CURL Request Method:\n%s\n" "$REQUEST_METHOD"
+    printf "* CURL Request Payload:\n%s\n" "$REQUEST_PAYLOAD"
 fi
 
 # override User-Agent and Accept that are injected by default by curl
