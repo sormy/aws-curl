@@ -181,7 +181,8 @@ sigv4_canonical_headers() {
     headers="$1"
 
     echo "$headers" \
-        | $SED_CMD -e 's!^ *!!' -e 's! *$!!' -e 's! \{2,\}! !g' -e 's! *: *!:!' -e 's!^.*:!\L&\E!' \
+        | $SED_CMD -e 's!^ *!!' -e 's! *$!!' -e 's! \{2,\}! !g' -e 's! *: *!:!' \
+        | awk -F: '{ st = index($0, ":"); print tolower($1) ":" substr($0, st + 1)}' \
         | grep -v '^$' \
         | sort
 }
