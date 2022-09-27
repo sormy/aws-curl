@@ -182,7 +182,7 @@ sigv4_canonical_headers() {
 
     echo "$headers" \
         | $SED_CMD -e 's!^ *!!' -e 's! *$!!' -e 's! \{2,\}! !g' -e 's! *: *!:!' \
-        | awk -F: '{ st = index($0, ":"); print tolower($1) ":" substr($0, st + 1)}' \
+        | awk -F: '{ st = index($0, ":"); if ( st > 0 ) print tolower($1) ":" substr($0, st + 1)}' \
         | grep -v '^$' \
         | sort
 }
