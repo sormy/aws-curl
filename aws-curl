@@ -414,6 +414,14 @@ while [ "$#" != 0 ]; do
             REQUEST_METHOD="$1"
             shift
             ;;
+        --json )
+            shift
+            OUTPUT_FORMAT="application/json"
+            ;;
+        --xml )
+            shift
+            OUTPUT_FORMAT="application/xml"
+            ;;
         -H | --header )
             shift
             REQUEST_HEADERS=$(printf "%s\n%s" "$REQUEST_HEADERS" "$1")
@@ -509,6 +517,7 @@ if [ -n "$AWS_PROFILE" ] && [ -z "$AWS_ACCESS_KEY_ID" ]; then
   AWS_ACCESS_KEY_ID=$(get_cred_value "$block" aws_access_key_id)
   AWS_SECRET_ACCESS_KEY=$(get_cred_value "$block" aws_secret_access_key)
   AWS_SESSION_TOKEN=$(get_cred_value "$block" aws_session_token)
+  AWS_DEFAULT_REGION=$(get_cred_value "$block" region)
 fi
 
 # check mandatory environment variables
@@ -628,6 +637,6 @@ echo "$CURL_ARGS" \
     | xargs -0 curl --request "$REQUEST_METHOD" \
         --header "$AUTHORIZATION_HEADER" \
         --header "User-Agent:" \
-        --header "Accept:" \
+        --header "Accept: $OUTPUT_FORMAT" \
         --header "Content-Type:" \
         --data-binary "$REQUEST_PAYLOAD"
