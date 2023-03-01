@@ -518,6 +518,10 @@ if [ -n "$AWS_PROFILE" ] && [ -z "$AWS_ACCESS_KEY_ID" ]; then
   AWS_SECRET_ACCESS_KEY=$(get_cred_value "$block" aws_secret_access_key)
   AWS_SESSION_TOKEN=$(get_cred_value "$block" aws_session_token)
   AWS_DEFAULT_REGION=$(get_cred_value "$block" region)
+  output=$(get_cred_value "$block" output)
+  if [ -n "$output" ]; then
+    OUTPUT_FORMAT=application/$output
+  fi
 fi
 
 # check mandatory environment variables

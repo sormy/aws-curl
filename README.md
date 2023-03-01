@@ -43,7 +43,7 @@ Set AWS credentials and region using standard AWS CLI environment variables:
 - `AWS_SESSION_TOKEN` - temporary token received from STS or from EC2 metadata
 - `AWS_DEFAULT_REGION` - AWS default region, in case if region is not provided
   in URL or as command line argument `--region`.
-- `AWS_PROFILE` - AWS_PROFILE, will read the above from ~/.aws/credentials
+- `AWS_PROFILE` - AWS_PROFILE, will read the above and default format from ~/.aws/credentials
 You can read more about AWS CLI environment variables here:
 <https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html>
 
@@ -236,7 +236,7 @@ Wrapper recognizes these non-curl arguments:
   if not explicitly provided in `AWS_DEFAULT_REGION` environment variable
 - `--ec2-creds` - use attached to EC2 credentials (instance role)
 - `--json` - force output in json format 
-- `--xml` - force output in xml format (default)
+- `--xml` - force output in xml format 
 
 ### Response format
 
