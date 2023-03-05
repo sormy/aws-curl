@@ -414,6 +414,14 @@ while [ "$#" != 0 ]; do
             REQUEST_METHOD="$1"
             shift
             ;;
+        --json )
+            shift
+            OUTPUT_FORMAT="application/json"
+            ;;
+        --xml )
+            shift
+            OUTPUT_FORMAT="application/xml"
+            ;;
         -H | --header )
             shift
             REQUEST_HEADERS=$(printf "%s\n%s" "$REQUEST_HEADERS" "$1")
@@ -498,6 +506,22 @@ fi
 # import attached ec2 credentials if enabled
 if [ "$EC2_CREDS" = 1 ]; then
     ec2_import_creds
+fi
+get_cred_value() {
+    echo "$1" | grep "$2 =" | cut -d ' ' -f 3-
+}
+
+if [ -n "$AWS_PROFILE" ] && [ -z "$AWS_ACCESS_KEY_ID" ]; then
+  # this can work with AWS SSO based connections
+  block=$(sed -n '/\['$AWS_PROFILE'/,/^$/p' ~/.aws/credentials)
+  AWS_ACCESS_KEY_ID=$(get_cred_value "$block" aws_access_key_id)
+  AWS_SECRET_ACCESS_KEY=$(get_cred_value "$block" aws_secret_access_key)
+  AWS_SESSION_TOKEN=$(get_cred_value "$block" aws_session_token)
+  AWS_DEFAULT_REGION=$(get_cred_value "$block" region)
+  output=$(get_cred_value "$block" output)
+  if [ -n "$output" ]; then
+    OUTPUT_FORMAT=application/$output
+  fi
 fi
 
 # check mandatory environment variables
@@ -617,6 +641,6 @@ echo "$CURL_ARGS" \
     | xargs -0 curl --request "$REQUEST_METHOD" \
         --header "$AUTHORIZATION_HEADER" \
         --header "User-Agent:" \
-        --header "Accept:" \
+        --header "Accept: $OUTPUT_FORMAT" \
         --header "Content-Type:" \
         --data-binary "$REQUEST_PAYLOAD"

@@ -43,7 +43,7 @@ Set AWS credentials and region using standard AWS CLI environment variables:
 - `AWS_SESSION_TOKEN` - temporary token received from STS or from EC2 metadata
 - `AWS_DEFAULT_REGION` - AWS default region, in case if region is not provided
   in URL or as command line argument `--region`.
-
+- `AWS_PROFILE` - AWS_PROFILE, will read the above and default format from ~/.aws/credentials
 You can read more about AWS CLI environment variables here:
 <https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html>
 
@@ -129,8 +129,9 @@ aws-curl --request POST \
 NOTE: Region can't be detected from URL, so it should be explicitly provided as
 argument or as `AWS_DEFAULT_REGION` env variable.
 
-NOTE: This API has xml response format by default, pass
-`Accept: application/json` header to change response format.
+NOTE: This API has xml response format by default, pass `Accept:
+application/json` header or give "--json" argument to change response
+format.
 
 ### Example 3: S3
 
@@ -234,13 +235,15 @@ Wrapper recognizes these non-curl arguments:
 - `--region` - AWS region name, if can't be automatically detected from host or
   if not explicitly provided in `AWS_DEFAULT_REGION` environment variable
 - `--ec2-creds` - use attached to EC2 credentials (instance role)
+- `--json` - force output in json format 
+- `--xml` - force output in xml format 
 
 ### Response format
 
 APIs for different services have different default response format. Sometimes it
 is json, sometimes xml. For most APIs you could enforce json output format by
 adding header `Accept: application/json` and xml output format by adding header
-`Accept: application/xml`.
+`Accept: application/xml` or use the --xml or --json arguments to specify this.
 
 ## Automatically computed headers
 
