@@ -1,0 +1,14 @@
+#!/bin/sh
+# shellcheck disable=SC2155
+
+credentials=$(curl -m 1 -s "http://169.254.170.2$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
+
+get_key_value() {
+  echo "$1" | sed -n -e "s/.*\"$2\": *\"\([^\"]*\)\".*/\1/p"
+}
+
+if [ -n "$credentials" ]; then
+  export AWS_ACCESS_KEY_ID=$(get_key_value "$credentials" "AccessKeyId")
+  export AWS_SECRET_ACCESS_KEY=$(get_key_value "$credentials" "SecretAccessKey")
+  export AWS_SESSION_TOKEN=$(get_key_value "$credentials" "Token")
+fi

@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2155,SC2001
 
-VERSION="1.0.9"
+VERSION="1.0.10"
 
 DATE_CMD="date"
 SED_CMD="sed"
@@ -21,7 +21,7 @@ fi
 #   safe url string
 ##
 urlsafe() {
-    echo "$1" | sed \
+    echo "$1" | $SED_CMD \
         -e 's!\x09!%09!g' \
         -e 's!\x0A!%0A!g' \
         -e 's!\x0B!%0B!g' \
@@ -336,7 +336,7 @@ sigv4_authorization_header() {
 }
 
 ##
-# Extracts key value from pretty-printed JSON-like structure.
+# Extracts key value from JSON-like structure.
 # Arguments:
 #   $1 payload
 #   $2 key name
@@ -344,7 +344,7 @@ sigv4_authorization_header() {
 #   key value
 ##
 get_key_value() {
-    echo "$1" | grep "$2" | cut -d ':' -f 2 | cut -d '"' -f 2
+    echo "$1" | $SED_CMD -n -e "s/.*\"$2\": *\"\([^\"]*\)\".*/\1/p"
 }
 
 ##
@@ -355,7 +355,7 @@ get_key_value() {
 #   region without az suffix
 ##
 strip_az_suffix() {
-    echo "$1" | sed -e 's![a-z]$!!'
+    echo "$1" | $SED_CMD -e 's![a-z]$!!'
 }
 
 ##
@@ -371,6 +371,21 @@ ec2_import_creds() {
     if [ -n "$availability_zone" ]; then
         AWS_DEFAULT_REGION=$(strip_az_suffix "$availability_zone")
     fi
+
+    if [ -n "$credentials" ]; then
+        AWS_ACCESS_KEY_ID=$(get_key_value "$credentials" "AccessKeyId")
+        AWS_SECRET_ACCESS_KEY=$(get_key_value "$credentials" "SecretAccessKey")
+        AWS_SESSION_TOKEN=$(get_key_value "$credentials" "Token")
+    fi
+}
+
+##
+# Imports credentials attached to ECS task
+##
+ecs_import_creds() {
+    curl_opts="--silent --connect-timeout 1 --fail"
+    ecs_creds_url="http://169.254.170.2$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
+    credentials=$(curl $curl_opts "$ecs_creds_url")
 
     if [ -n "$credentials" ]; then
         AWS_ACCESS_KEY_ID=$(get_key_value "$credentials" "AccessKeyId")
@@ -405,6 +420,7 @@ CURL_VERBOSE=""
 AWS_REGION=""
 AWS_SERVICE=""
 EC2_CREDS="0"
+ECS_CREDS="0"
 
 # read command line arguments
 while [ "$#" != 0 ]; do
@@ -460,6 +476,10 @@ while [ "$#" != 0 ]; do
             shift
             EC2_CREDS="1"
             ;;
+        --ecs-creds )
+            shift
+            ECS_CREDS="1"
+            ;;
         --data-ascii | --data-raw | --data-urlencode )
             echo "Option $1 is not supported at this time."
             exit 1
@@ -498,6 +518,11 @@ fi
 # import attached ec2 credentials if enabled
 if [ "$EC2_CREDS" = 1 ]; then
     ec2_import_creds
+fi
+
+# import attached ecs credentials if enabled
+if [ "$ECS_CREDS" = 1 ]; then
+    ecs_import_creds
 fi
 
 # check mandatory environment variables
