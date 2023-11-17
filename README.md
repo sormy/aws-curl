@@ -234,6 +234,7 @@ Wrapper recognizes these non-curl arguments:
 - `--region` - AWS region name, if can't be automatically detected from host or
   if not explicitly provided in `AWS_DEFAULT_REGION` environment variable
 - `--ec2-creds` - use attached to EC2 credentials (instance role)
+- `--ecs-creds` - use attached to ECS credentials (task role)
 
 ### Response format
 
@@ -307,9 +308,14 @@ including access key, secret key, session token and region.
 
 Just import from the shell as `source ec2-import-creds`.
 
-Or you can use `--ec2-creds` options of `aws-cli` to get the same effect, but
+Or you can use `--ec2-creds` option of `aws-curl` to get the same effect, but
 importing credentials once in beginning is faster than importing for every
 `aws-curl` invocation.
+
+## ECS attached role
+
+When your service runs as ECS task you can import the attached credentials
+using `source ecs-import-creds` or `--ecs-creds` option.
 
 ## Platforms
 
